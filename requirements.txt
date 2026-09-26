@@ -1,0 +1,6 @@
+# The Groq Python SDK -- lets us call Groq's free LLM API
+groq>=0.11.0
+
+# python-dotenv -- lets us load secrets (like our API key) from a .env file
+# instead of hardcoding them in the source code
+python-dotenv>=1.0.0
