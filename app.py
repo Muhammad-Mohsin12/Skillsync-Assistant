@@ -374,7 +374,7 @@ with st.sidebar:
         mode = st.selectbox(
             "Assistant mode",
             options=["qa", "summarize"],
-            format_func=lambda m: "\U0001F4AC Q&A Assistant" if m == "qa" else "\U0001F4DD Summarizer",
+            format_func=lambda m: "\U0001F4AC Q&A Assistant" if m == "qa" else "Summarizer",
             key="mode_select",
         )
         max_tokens = st.slider(
