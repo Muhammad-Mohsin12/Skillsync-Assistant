@@ -39,6 +39,7 @@ FIRST TIME ONLY -- install streamlit before running:
     python -m pip install streamlit
 """
 
+import json
 import os
 import uuid
 from datetime import datetime
@@ -68,6 +69,39 @@ SUGGESTED_PROMPTS = [
     "What courses do you offer?",
     "How do I get started?",
 ]
+
+# A single small four-point "spark" mark used as the app's wordmark, in place
+# of a generic emoji brain. Uses currentColor so the same markup works both
+# on the white header banner and against the sidebar/page text color.
+SPARK_ICON_SVG = """
+<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none"
+     xmlns="http://www.w3.org/2000/svg" style="vertical-align:-6px; flex-shrink:0;">
+  <path d="M12 2.5L14.2 9.3L21 12L14.2 14.7L12 21.5L9.8 14.7L3 12L9.8 9.3L12 2.5Z"
+        fill="currentColor"/>
+</svg>
+"""
+
+
+def _spark_icon(size=24):
+    return SPARK_ICON_SVG.format(size=size)
+
+
+def _copy_button_html(text, key):
+    """A tiny client-side (no server round-trip) copy-to-clipboard control
+    rendered under an assistant reply. Pure HTML/JS so it works safely
+    inside st.markdown(unsafe_allow_html=True) without a custom component."""
+    safe_text = json.dumps(text)
+    return f"""
+    <div class="copy-btn-row">
+      <button type="button" class="copy-btn" id="copy-{key}"
+        onclick="navigator.clipboard.writeText({safe_text});
+                 this.innerText='Copied';
+                 this.classList.add('copied');
+                 setTimeout(() => {{ this.innerText='Copy'; this.classList.remove('copied'); }}, 1200);">
+        Copy
+      </button>
+    </div>
+    """
 
 # ============================================================
 # PAGE SETUP
@@ -266,6 +300,55 @@ st.markdown(
         outline-offset: 2px;
     }}
 
+    /* ---------- Centered reading column (avoids full-bleed text on wide monitors) ---------- */
+    .block-container {{
+        max-width: 760px;
+        padding-top: 2rem;
+    }}
+
+    /* ---------- Message entrance animation ---------- */
+    @keyframes msg-in {{
+        from {{ opacity: 0; transform: translateY(6px); }}
+        to   {{ opacity: 1; transform: translateY(0); }}
+    }}
+    div[data-testid="stChatMessage"] {{
+        animation: msg-in 220ms ease-out;
+    }}
+
+    /* ---------- Copy-to-clipboard control under assistant replies ---------- */
+    .copy-btn-row {{
+        display: flex;
+        justify-content: flex-end;
+        margin-top: -6px;
+    }}
+    .copy-btn {{
+        font-size: 0.72rem;
+        font-weight: 500;
+        color: var(--text-muted);
+        background: transparent;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 2px 10px;
+        cursor: pointer;
+        transition: color 120ms ease, border-color 120ms ease;
+    }}
+    .copy-btn:hover {{
+        color: var(--accent-mid);
+        border-color: var(--accent-mid);
+    }}
+    .copy-btn.copied {{
+        color: #16A34A;
+        border-color: #16A34A;
+    }}
+
+    /* ---------- Sidebar footer badge ---------- */
+    .sidebar-footer-badge {{
+        font-size: 0.72rem;
+        color: var(--text-muted);
+        text-align: center;
+        padding-top: 4px;
+    }}
+
     @media (max-width: 480px) {{
         .header-banner h1 {{ font-size: 1.5rem; }}
         .landing-hero h2 {{ font-size: 1.25rem; }}
@@ -279,9 +362,9 @@ st.markdown(
 # HEADER BANNER
 # ============================================================
 st.markdown(
-    """
+    f"""
     <div class="header-banner">
-        <h1>\U0001F9E0 SkillSync Chatbot</h1>
+        <h1>{_spark_icon(30)} SkillSync Chatbot</h1>
         <p>Ask me anything about SkillSync -- courses, focus areas, and skillIT</p>
     </div>
     """,
@@ -333,7 +416,10 @@ if "active_chat_id" not in st.session_state:
 # SIDEBAR: new chat, history, settings, save/clear
 # ============================================================
 with st.sidebar:
-    st.markdown('<div class="sidebar-brand">\U0001F9E0 SkillSync</div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="sidebar-brand">{_spark_icon(20)} SkillSync</div>',
+        unsafe_allow_html=True,
+    )
 
     if st.button("\uFF0B  New chat", use_container_width=True, type="primary", key="new_chat_btn"):
         _start_new_chat(mode=st.session_state.mode_select)
@@ -366,6 +452,7 @@ with st.sidebar:
                     delete_chat(chat["id"])
                     if is_active:
                         _start_new_chat(mode=st.session_state.mode_select)
+                    st.toast("Chat deleted", icon="\U0001F5D1")
                     st.rerun()
 
     st.divider()
@@ -419,6 +506,7 @@ with st.sidebar:
             delete_all_chats()
             _start_new_chat(mode=st.session_state.mode_select)
             st.session_state.confirm_clear_all = False
+            st.toast("All chats cleared", icon="\U0001F9F9")
             st.rerun()
         if c2.button("Cancel", use_container_width=True, key="confirm_clear_cancel"):
             st.session_state.confirm_clear_all = False
@@ -441,6 +529,10 @@ with st.sidebar:
         *All chats in this app are stored in one shared, local history
         file (no login system exists yet) -- see chat_store.py for details.*
         """
+    )
+    st.markdown(
+        '<div class="sidebar-footer-badge">Built with Streamlit · Powered by Groq</div>',
+        unsafe_allow_html=True,
     )
 
 mode = st.session_state.mode_select
@@ -493,12 +585,17 @@ if show_landing:
 # EXISTING CONVERSATION (skip while showing the landing state)
 # ============================================================
 else:
-    for message in st.session_state.history:
+    for idx, message in enumerate(st.session_state.history):
         if message["role"] == "system":
             continue
         avatar = USER_AVATAR if message["role"] == "user" else BOT_AVATAR
         with st.chat_message(message["role"], avatar=avatar):
             st.write(message["content"])
+            if message["role"] == "assistant":
+                st.markdown(
+                    _copy_button_html(message["content"], key=f"hist_{idx}"),
+                    unsafe_allow_html=True,
+                )
 
 # ============================================================
 # PROCESS A NEW MESSAGE (typed, or a suggested-prompt chip)
@@ -519,6 +616,10 @@ if user_input:
                 max_tokens=max_tokens,
             )
         st.write(reply)
+        st.markdown(
+            _copy_button_html(reply, key=f"latest_{len(st.session_state.history)}"),
+            unsafe_allow_html=True,
+        )
 
     st.session_state.history.append({"role": "assistant", "content": reply})
 
