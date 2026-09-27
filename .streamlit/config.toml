@@ -1,0 +1,39 @@
+# Streamlit theme config for the SkillSync Chatbot.
+#
+# Defines BOTH a light and a dark theme (Streamlit 1.36+ supports this via
+# [theme.light] / [theme.dark]) so the app follows Streamlit's own theme
+# switcher -- Settings -> Theme -> Light / Dark / Use system setting --
+# instead of a hand-rolled toggle that would fight Streamlit's chrome.
+# app.py reads back whichever one is active via st.context.theme.base and
+# matches its own custom CSS to it.
+
+[theme]
+base = "light"          # theme shown before the user picks one explicitly
+font = "sans serif"
+baseRadius = "large"     # rounded corners across built-in widgets, per the 12-16px spec
+
+[theme.light]
+primaryColor = "#7C3AED"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F5F3FF"
+textColor = "#1F2333"
+borderColor = "#E5E1F5"
+linkColor = "#7C3AED"
+
+[theme.light.sidebar]
+backgroundColor = "#F5F3FF"
+secondaryBackgroundColor = "#EDE9FE"
+borderColor = "#E5E1F5"
+
+[theme.dark]
+primaryColor = "#A78BFA"
+backgroundColor = "#14101F"
+secondaryBackgroundColor = "#1B1530"
+textColor = "#F5F3FF"
+borderColor = "#332A4D"
+linkColor = "#A78BFA"
+
+[theme.dark.sidebar]
+backgroundColor = "#1B1530"
+secondaryBackgroundColor = "#241C3D"
+borderColor = "#332A4D"
