@@ -39,7 +39,7 @@ FIRST TIME ONLY -- install streamlit before running:
     python -m pip install streamlit
 """
 
-import json
+import html
 import os
 import uuid
 from datetime import datetime
@@ -88,20 +88,28 @@ def _spark_icon(size=24):
 
 def _copy_button_html(text, key):
     """A tiny client-side (no server round-trip) copy-to-clipboard control
-    rendered under an assistant reply. Pure HTML/JS so it works safely
-    inside st.markdown(unsafe_allow_html=True) without a custom component."""
-    safe_text = json.dumps(text)
-    return f"""
-    <div class="copy-btn-row">
-      <button type="button" class="copy-btn" id="copy-{key}"
-        onclick="navigator.clipboard.writeText({safe_text});
-                 this.innerText='Copied';
-                 this.classList.add('copied');
-                 setTimeout(() => {{ this.innerText='Copy'; this.classList.remove('copied'); }}, 1200);">
-        Copy
-      </button>
-    </div>
-    """
+    rendered under an assistant reply.
+
+    The reply text is NOT embedded inside a JS string literal or an HTML
+    attribute -- if the reply itself contains a double quote, apostrophe,
+    newline, or backtick (any normal sentence will), that breaks out of the
+    quoting and spills raw text onto the page. Instead the text sits inside
+    a hidden, HTML-escaped <span>; the button just reads that element's
+    .textContent (the browser un-escapes it back to the exact original
+    text) and copies it. No quoting problem exists because it's never
+    inlined into an attribute or a script string."""
+    escaped = html.escape(text)
+    return (
+        f'<span id="copy-src-{key}" style="display:none">{escaped}</span>'
+        '<div class="copy-btn-row">'
+        f'<button type="button" class="copy-btn" id="copy-{key}" '
+        f"onclick=\"navigator.clipboard.writeText("
+        f"document.getElementById('copy-src-{key}').textContent); "
+        "this.innerText='Copied'; this.classList.add('copied'); "
+        "setTimeout(() => { this.innerText='Copy'; this.classList.remove('copied'); }, 1200);\">"
+        "Copy</button>"
+        "</div>"
+    )
 
 # ============================================================
 # PAGE SETUP
@@ -306,13 +314,18 @@ st.markdown(
         padding-top: 2rem;
     }}
 
-    /* ---------- Message entrance animation ---------- */
+    /* ---------- Message entrance animation ----------
+       Only the newest bubble animates. Without :last-of-type, every message
+       in the whole history would replay this animation on every single
+       rerun (Streamlit reruns top-to-bottom on each interaction), which
+       looks like the entire chat flashing instead of one new message
+       arriving. */
     @keyframes msg-in {{
         from {{ opacity: 0; transform: translateY(6px); }}
         to   {{ opacity: 1; transform: translateY(0); }}
     }}
-    div[data-testid="stChatMessage"] {{
-        animation: msg-in 220ms ease-out;
+    div[data-testid="stChatMessage"]:last-of-type {{
+        animation: msg-in 260ms ease-out;
     }}
 
     /* ---------- Copy-to-clipboard control under assistant replies ---------- */
